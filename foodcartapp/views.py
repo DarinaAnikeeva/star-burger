@@ -1,13 +1,18 @@
+from pprint import pprint
+
+from rest_framework.decorators import api_view
 from django.http import JsonResponse
+from rest_framework.response import Response
 from django.templatetags.static import static
 
-
+from .models import Order
+from .models import OrderElements
 from .models import Product
 
-
+@api_view(['GET'])
 def banners_list_api(request):
     # FIXME move data to db?
-    return JsonResponse([
+    return Response([
         {
             'title': 'Burger',
             'src': static('burger.jpg'),
@@ -23,12 +28,10 @@ def banners_list_api(request):
             'src': static('tasty.jpg'),
             'text': 'Food is incomplete without a tasty dessert',
         }
-    ], safe=False, json_dumps_params={
-        'ensure_ascii': False,
-        'indent': 4,
-    })
+    ])
 
 
+@api_view(['GET'])
 def product_list_api(request):
     products = Product.objects.select_related('category').available()
 
@@ -51,12 +54,36 @@ def product_list_api(request):
             }
         }
         dumped_products.append(dumped_product)
-    return JsonResponse(dumped_products, safe=False, json_dumps_params={
-        'ensure_ascii': False,
-        'indent': 4,
-    })
+    return Response(dumped_products)
 
 
+def product_name(product_id):
+    product = Product.objects.get(id=product_id)
+    return product.name
+
+@api_view(['POST'])
 def register_order(request):
-    # TODO это лишь заглушка
-    return JsonResponse({})
+    order_info = request.data
+    pprint(order_info)
+    order = Order.objects.create(
+        name=order_info['firstname'],
+        surname=order_info['lastname'],
+        phonenumber=order_info['phonenumber'],
+        address=order_info['address'],
+    )
+
+    for product in order_info['products']:
+        order_elements = OrderElements.objects.create(
+            order=order,
+            name=product_name(product['product']),
+            quantity=product['quantity']
+        )
+
+    order_dict = {
+        'products': [product for product in order_info['products']],
+        'firstname': order_info['firstname'],
+        'lastname': order_info['lastname'],
+        'phonenumber': order_info['phonenumber'],
+        'address': order_info['address']
+    }
+    return Response(order_dict)
