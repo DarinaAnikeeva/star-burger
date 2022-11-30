@@ -1,7 +1,6 @@
-from pprint import pprint
+import phonenumbers
 
 from rest_framework.decorators import api_view
-from django.http import JsonResponse
 from rest_framework.response import Response
 from django.templatetags.static import static
 
@@ -64,26 +63,20 @@ def product_name(product_id):
 @api_view(['POST'])
 def register_order(request):
     order_info = request.data
-    pprint(order_info)
-    order = Order.objects.create(
-        name=order_info['firstname'],
-        surname=order_info['lastname'],
-        phonenumber=order_info['phonenumber'],
-        address=order_info['address'],
-    )
-
-    for product in order_info['products']:
-        order_elements = OrderElements.objects.create(
-            order=order,
-            name=product_name(product['product']),
-            quantity=product['quantity']
+    client_phone = phonenumbers.parse(order_info['phonenumber'], 'RU')
+    if phonenumbers.is_valid_number(client_phone):
+        order = Order.objects.create(
+            name=order_info['firstname'],
+            surname=order_info['lastname'],
+            phonenumber=order_info['phonenumber'],
+            address=order_info['address'],
         )
 
-    order_dict = {
-        'products': [product for product in order_info['products']],
-        'firstname': order_info['firstname'],
-        'lastname': order_info['lastname'],
-        'phonenumber': order_info['phonenumber'],
-        'address': order_info['address']
-    }
-    return Response(order_dict)
+        for product in order_info['products']:
+            order_elements = OrderElements.objects.create(
+                order=order,
+                name=product_name(product['product']),
+                quantity=product['quantity']
+            )
+
+    return Response()
