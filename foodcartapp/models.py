@@ -127,26 +127,22 @@ class RestaurantMenuItem(models.Model):
 
 
 class Order(models.Model):
-    name = models.CharField(
+    firstname = models.CharField(
         verbose_name='Имя',
         max_length=20,
-        blank=False
     )
-    surname = models.CharField(
+    lastname = models.CharField(
         verbose_name='Фамилия',
         max_length=20,
-        blank=False
     )
     phonenumber = PhoneNumberField(
         'Номер телефона',
         region='RU',
-        blank=False,
         max_length=20,
         db_index=True)
 
     address = models.TextField(
         verbose_name='Адрес',
-        blank=False
     )
 
     class Meta:
@@ -154,7 +150,7 @@ class Order(models.Model):
         verbose_name_plural = 'заказы'
 
     def __str__(self):
-        return f'{self.name}, {self.surname}, {self.address}'
+        return f'{self.firstname}, {self.lastname}, {self.address}'
 
 
 class OrderElements(models.Model):
@@ -163,17 +159,15 @@ class OrderElements(models.Model):
         verbose_name='Заказ',
         related_name='elements',
         on_delete=models.CASCADE,
-        blank=True,
-        null=True
     )
-    name = models.CharField(
-        verbose_name='Товар',
-        max_length=50,
-        blank=True
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='order_products',
+        verbose_name='продукт',
     )
     quantity = models.IntegerField(
         verbose_name='Количество',
-        blank=True
     )
 
     class Meta:
@@ -181,4 +175,4 @@ class OrderElements(models.Model):
         verbose_name_plural = 'элементы заказа'
 
     def __str__(self):
-        return f'{self.name} - {self.order.name} {self.order.surname}'
+        return f'{self.product.name} - {self.order.firstname} {self.order.lastname}'
