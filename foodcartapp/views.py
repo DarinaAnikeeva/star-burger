@@ -1,4 +1,4 @@
-import phonenumbers
+from rest_framework.renderers import JSONRenderer
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -65,11 +65,12 @@ class OrderElementsSerializer(ModelSerializer):
 
 class OrderSerializer(ModelSerializer):
     products = OrderElementsSerializer(many=True,
-                                       allow_empty=False)
+                                       allow_empty=False,
+                                       write_only=True)
 
     class Meta:
         model = Order
-        fields = ['firstname', 'lastname', 'address', 'phonenumber', 'products']
+        fields = ['id', 'firstname', 'lastname', 'address', 'phonenumber', 'products']
 
 
 @api_view(['POST'])
@@ -94,15 +95,13 @@ def register_order(request):
     )
 
     for product_param in order_info['products']:
-        max_product_id = Product.objects.count()
-        product_id = int(product_param.get('product'))
-        if product_id > max_product_id:
-            return Response({'products': f'Недопустимый первичный ключ "{product_id}"'})
-        product = Product.objects.get(id=product_id)
+        product_name = product_param.get('product')
+        product = Product.objects.get(name=product_name)
         order_elements = OrderElements.objects.create(
             order=order,
             product=product,
             quantity=product_param['quantity']
         )
 
-    return Response()
+    serializer = OrderSerializer(order)
+    return Response(serializer.data, status=200)
