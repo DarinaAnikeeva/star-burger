@@ -7,7 +7,7 @@ from rest_framework.serializers import ModelSerializer
 
 
 from .models import Order
-from .models import OrderElements
+from .models import OrderElement
 from .models import Product
 
 @api_view(['GET'])
@@ -60,7 +60,7 @@ def product_list_api(request):
 
 class OrderElementsSerializer(ModelSerializer):
     class Meta:
-        model = OrderElements
+        model = OrderElement
         fields = ['product', 'quantity']
 
 class OrderSerializer(ModelSerializer):
@@ -78,14 +78,6 @@ def register_order(request):
     serializer = OrderSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     order_info = serializer.validated_data
-    # try:
-    #     client_phone = phonenumbers.parse(order_info['phonenumber'], 'RU')
-    #     if phonenumbers.is_valid_number(client_phone):
-    #         phonenumber = order_info['phonenumber']
-    #     else:
-    #         return Response({'phonenumber': 'Введен некорректный номер телефона'})
-    # except:
-    #     return Response({'phonenumber': 'Введен некорректный номер телефона'})
 
     order = Order.objects.create(
         firstname=order_info['firstname'],
@@ -95,12 +87,12 @@ def register_order(request):
     )
 
     for product_param in order_info['products']:
-        product_name = product_param.get('product')
-        product = Product.objects.get(name=product_name)
-        order_elements = OrderElements.objects.create(
+        quantity = product_param.get('quantity')
+        product = product_param.get('product')
+        order_elements = OrderElement.objects.create(
             order=order,
             product=product,
-            quantity=product_param['quantity']
+            quantity=quantity
         )
 
     serializer = OrderSerializer(order)
