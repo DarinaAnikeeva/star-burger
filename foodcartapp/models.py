@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
+from django.db.models import Count, F
 
 
 class Restaurant(models.Model):
@@ -153,7 +154,17 @@ class Order(models.Model):
         return f'{self.firstname}, {self.lastname}, {self.address}'
 
 
-class OrderElements(models.Model):
+class OrderElementQuerySet(models.QuerySet):
+
+    def order_price(self):
+        order_elements = self.annotate(element_price=F('product__price') * F('quantity'))
+        price = 0
+        for element in order_elements:
+            price += element.element_price
+        return price
+
+
+class OrderElement(models.Model):
     order = models.ForeignKey(
         Order,
         verbose_name='Заказ',
@@ -169,6 +180,8 @@ class OrderElements(models.Model):
     quantity = models.IntegerField(
         verbose_name='Количество',
     )
+
+    objects = OrderElementQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'элемент заказа'
