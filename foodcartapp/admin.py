@@ -13,13 +13,38 @@ from .models import RestaurantMenuItem
 class OrderElementInline(admin.TabularInline):
     model = OrderElement
     extra = 0
+    readonly_fields = [
+        'product_sum',
+        'catalog_price'
+    ]
+
+    def product_sum(self, obj):
+        if obj.quantity and obj.price:
+            sum = obj.price * obj.quantity
+            return sum
+
+    def catalog_price(self, obj):
+        order_price = 0
+        for order_item in obj.order_items.all():
+            if order_item.quantity and order_item.price:
+                item_sum = order_item.quantity * order_item.price
+                order_price += item_sum
+        return order_price
 
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    readonly_fields = [
+        'order_price'
+    ]
+
     inlines = [
         OrderElementInline
     ]
+
+    def order_price(self, obj):
+        price = OrderElement.objects.filter(order=obj).order_price()
+        return float(price)
 
 
 class RestaurantMenuItemInline(admin.TabularInline):
