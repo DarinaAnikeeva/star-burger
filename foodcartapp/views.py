@@ -93,7 +93,8 @@ def register_order(request):
         order_elements = OrderElement.objects.create(
             order=order,
             product=product,
-            quantity=quantity
+            quantity=quantity,
+            price=product.price
         )
     serializer = OrderSerializer(order)
     return Response(serializer.data, status=200)

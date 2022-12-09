@@ -1,7 +1,8 @@
 from django.contrib import admin
-from django.shortcuts import reverse
+from django.shortcuts import reverse, redirect
 from django.templatetags.static import static
 from django.utils.html import format_html
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import Order
 from .models import OrderElement
@@ -24,13 +25,8 @@ class OrderElementInline(admin.TabularInline):
             return sum
 
     def catalog_price(self, obj):
-        order_price = 0
-        for order_item in obj.order_items.all():
-            if order_item.quantity and order_item.price:
-                item_sum = order_item.quantity * order_item.price
-                order_price += item_sum
-        return order_price
-
+        return obj.product.price
+    
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
@@ -42,10 +38,20 @@ class OrderAdmin(admin.ModelAdmin):
         OrderElementInline
     ]
 
+
     def order_price(self, obj):
         price = OrderElement.objects.filter(order=obj).order_price()
         return float(price)
 
+    def response_post_save_change(self, request, obj):
+        res = super().response_post_save_change(request, obj)
+        if "next" in request.GET:
+            if url_has_allowed_host_and_scheme(request.GET['next'], None):
+                return redirect(request.GET['next'])
+            else:
+                return res
+        else:
+            return res
 
 class RestaurantMenuItemInline(admin.TabularInline):
     model = RestaurantMenuItem

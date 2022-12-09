@@ -146,6 +146,21 @@ class Order(models.Model):
         verbose_name='Адрес',
     )
 
+    STATUSES = (
+        ('New', 'Необработанный'),
+        ('Done', 'Обработанный'),
+        ('Progress', 'На сборке'),
+        ('Go', 'Доставляется'),
+    )
+
+    status = models.CharField(
+        verbose_name='Статус заказа',
+        max_length=20,
+        choices=STATUSES,
+        default='Необработанный',
+        db_index=True
+    )
+
     class Meta:
         verbose_name = 'заказы'
         verbose_name_plural = 'заказы'
@@ -187,6 +202,7 @@ class OrderElement(models.Model):
         verbose_name='Цена товара',
         max_digits=5,
         decimal_places=2,
+        default=0,
         validators=[MinValueValidator(0)]
     )
 
