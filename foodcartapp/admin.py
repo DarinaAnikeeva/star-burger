@@ -26,7 +26,7 @@ class OrderElementInline(admin.TabularInline):
 
     def catalog_price(self, obj):
         return obj.product.price
-    
+
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):

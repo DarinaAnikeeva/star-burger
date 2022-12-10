@@ -94,7 +94,7 @@ def view_orders(request):
     orders = Order.objects.all()
     order_items = []
     for order in orders:
-        # if order.status != 'Done':
+        if order.status != 'Done':
             order_price = OrderElement.objects.filter(order=order).order_price()
             order_items.append(
                 {
@@ -103,7 +103,8 @@ def view_orders(request):
                     'price': order_price,
                     'client': order.firstname,
                     'phonenumber': order.phonenumber,
-                    'address': order.address
+                    'address': order.address,
+                    'comment': order.comment
                 }
             )
     return render(request, template_name='order_items.html', context={
