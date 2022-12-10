@@ -1,7 +1,8 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
-from django.db.models import Count, F
+from django.db.models import F
+from django.utils import timezone
 
 
 class Restaurant(models.Model):
@@ -146,11 +147,16 @@ class Order(models.Model):
         verbose_name='Адрес',
     )
 
+    NEW = 'New'
+    DONE = 'Done'
+    PROGRESS = 'Progress'
+    GO = 'Go'
+
     STATUSES = (
-        ('New', 'Необработанный'),
-        ('Done', 'Обработанный'),
-        ('Progress', 'На сборке'),
-        ('Go', 'Доставляется'),
+        (NEW, 'Необработанный'),
+        (DONE, 'Обработанный'),
+        (PROGRESS, 'На сборке'),
+        (GO, 'Доставляется'),
     )
 
     status = models.CharField(
@@ -169,6 +175,42 @@ class Order(models.Model):
         null=True,
     )
 
+    registered = models.DateTimeField(
+        verbose_name='Время создания заказа',
+        default=timezone.now
+    )
+
+    called = models.DateTimeField(
+        verbose_name='Время звонка',
+        db_index=True,
+        blank=True,
+        null=True
+    )
+
+    delivered = models.DateTimeField(
+        verbose_name='Время доставки',
+        db_index=True,
+        blank=True,
+        null=True
+    )
+
+    RIGHT_NOW = 'right_now_pay'
+    DELIVERY_CASH = 'delivery_pay_cash'
+    DELIVERY_CARD = 'delivery_pay_card'
+
+    FORMS = (
+        (RIGHT_NOW, 'Электронно'),
+        (DELIVERY_CASH, 'Наличными после доставки'),
+        (DELIVERY_CARD, 'Картой после доставки')
+    )
+
+    pay_form = models.CharField(
+        verbose_name='Способ оплаты',
+        max_length=20,
+        choices=FORMS,
+        default=DELIVERY_CASH,
+        db_index=True
+    )
     class Meta:
         verbose_name = 'заказы'
         verbose_name_plural = 'заказы'
@@ -210,7 +252,6 @@ class OrderElement(models.Model):
         verbose_name='Цена товара',
         max_digits=5,
         decimal_places=2,
-        default=0,
         validators=[MinValueValidator(0)]
     )
 

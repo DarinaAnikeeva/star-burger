@@ -100,6 +100,7 @@ def view_orders(request):
                 {
                     'id': order.id,
                     'status': order.get_status_display(),
+                    'pay_form': order.get_pay_form_display(),
                     'price': order_price,
                     'client': order.firstname,
                     'phonenumber': order.phonenumber,
