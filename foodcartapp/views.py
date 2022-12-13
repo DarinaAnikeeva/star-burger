@@ -62,6 +62,7 @@ class OrderElementsSerializer(ModelSerializer):
         model = OrderElement
         fields = ['product', 'quantity']
 
+
 class OrderSerializer(ModelSerializer):
     products = OrderElementsSerializer(many=True,
                                        allow_empty=False,
@@ -79,7 +80,6 @@ def register_order(request):
     serializer = OrderSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     order_info = serializer.validated_data
-
     order = Order.objects.create(
         firstname=order_info['firstname'],
         lastname=order_info['lastname'],

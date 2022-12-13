@@ -1,3 +1,5 @@
+import requests
+import environs
 from django import forms
 from django.shortcuts import redirect, render
 from django.views import View
@@ -6,6 +8,8 @@ from django.contrib.auth.decorators import user_passes_test
 
 from django.contrib.auth import authenticate, login
 from django.contrib.auth import views as auth_views
+from geopy import distance
+from urllib3.exceptions import HTTPError
 
 from foodcartapp.models import Product, Restaurant, RestaurantMenuItem, Order, OrderElement
 
@@ -88,37 +92,64 @@ def view_restaurants(request):
         'restaurants': Restaurant.objects.all(),
     })
 
-def restaurants_with_order_products(order, order_elements):
+
+def fetch_coordinates(apikey, address):
+    base_url = "https://geocode-maps.yandex.ru/1.x"
+    response = requests.get(base_url, params={
+        "geocode": address,
+        "apikey": apikey,
+        "format": "json",
+    })
+    response.raise_for_status()
+    found_places = response.json()['response']['GeoObjectCollection']['featureMember']
+
+    if not found_places:
+        return None
+
+    most_relevant = found_places[0]
+    lon, lat = most_relevant['GeoObject']['Point']['pos'].split(" ")
+    return lon, lat
+
+
+def get_restaurant_distance(restaurant):
+    return restaurant['distance']
+
+
+def find_distances(client_adress, restautants):
+    env = environs.Env()
+    env.read_env()
+    api_key = env.str('API_KEY')
+    client_coords = fetch_coordinates(api_key, client_adress)
+    restaurants_for_order_distance = []
+    for restautant in restautants:
+        restautant_coords = fetch_coordinates(api_key, restautant.address)
+        distance_from_restaurant_to_client = round(distance.distance(client_coords, restautant_coords).km, 1)
+        restaurants_for_order_distance.append(
+            {
+                'name': restautant.name,
+                'distance': distance_from_restaurant_to_client
+            }
+        )
+    return sorted(restaurants_for_order_distance,
+                  key=get_restaurant_distance)
+
+def restaurants_with_order_products(order_elements):
     restaurants_lists = []
     items = RestaurantMenuItem.objects.prefetch_related('restaurant')
     for element in order_elements:
-        menu_items = items.filter(product__id=element.product.id)
-        restaurateurs_with_product = [item.restaurant.name for item in menu_items]
+        menu_items = items.filter(product=element.product)
+        restaurateurs_with_product = [item.restaurant for item in menu_items]
         restaurants_lists.append(restaurateurs_with_product)
 
     restaurants_for_order = restaurants_lists[0]
     for restaurant in restaurants_lists:
-        restaurants_join = list(set(restaurants_for_order) & set(restaurant))
-        restaurants_for_order = restaurants_join
-
-    order_items = {
-            'id': order.id,
-            'status': order.get_status_display(),
-            'pay_form': order.get_pay_form_display(),
-            'price': order_elements.order_price(),
-            'client': order.firstname,
-            'phonenumber': order.phonenumber,
-            'address': order.address,
-            'comment': order.comment,
-            'restaurants': restaurants_for_order
-        }
-
-    return order_items
+        restaurants_for_order = list(set(restaurants_for_order) & set(restaurant))
+    return restaurants_for_order
 
 
 @user_passes_test(is_manager, login_url='restaurateur:login')
 def view_orders(request):
-    orders = Order.objects.all()
+    orders = Order.objects.prefetch_related('restaurant')
     order_items = []
     for order in orders:
         if order.status != 'Done':
@@ -141,8 +172,21 @@ def view_orders(request):
                     }
                 )
             else:
-                order_item = restaurants_with_order_products(order, order_elements)
-                order_items.append(order_item)
+                restaurants_for_order = restaurants_with_order_products(order_elements)
+                restaurants_for_order_with_distances = find_distances(order.address, restaurants_for_order)
+                order_items.append(
+                    {
+                        'id': order.id,
+                        'status': order.get_status_display(),
+                        'pay_form': order.get_pay_form_display(),
+                        'price': order_elements.order_price(),
+                        'client': order.firstname,
+                        'phonenumber': order.phonenumber,
+                        'address': order.address,
+                        'comment': order.comment,
+                        'restaurants': restaurants_for_order_with_distances,
+                    }
+                )
 
     return render(request, template_name='order_items.html', context={
         'order_items': order_items
