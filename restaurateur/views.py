@@ -1,5 +1,5 @@
-import requests
-import environs
+import logging
+
 from django import forms
 from django.shortcuts import redirect, render
 from django.views import View
@@ -9,9 +9,12 @@ from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth import authenticate, login
 from django.contrib.auth import views as auth_views
 from geopy import distance
-from urllib3.exceptions import HTTPError
+from foodcartapp.views import fetch_coordinates
+from star_burger.settings import YANDEX_API_KEY
+from foodcartapp.views import MyError
 
 from foodcartapp.models import Product, Restaurant, RestaurantMenuItem, Order, OrderElement
+from restaurateur.models import Coordinates
 
 
 class Login(forms.Form):
@@ -92,38 +95,44 @@ def view_restaurants(request):
         'restaurants': Restaurant.objects.all(),
     })
 
-
-def fetch_coordinates(apikey, address):
-    base_url = "https://geocode-maps.yandex.ru/1.x"
-    response = requests.get(base_url, params={
-        "geocode": address,
-        "apikey": apikey,
-        "format": "json",
-    })
-    response.raise_for_status()
-    found_places = response.json()['response']['GeoObjectCollection']['featureMember']
-
-    if not found_places:
-        return None
-
-    most_relevant = found_places[0]
-    lon, lat = most_relevant['GeoObject']['Point']['pos'].split(" ")
-    return lon, lat
-
-
 def get_restaurant_distance(restaurant):
     return restaurant['distance']
 
 
-def find_distances(client_adress, restautants):
-    env = environs.Env()
-    env.read_env()
-    api_key = env.str('API_KEY')
-    client_coords = fetch_coordinates(api_key, client_adress)
+def find_distances(client_address, restautants):
+    coordinates = Coordinates.objects.all()
+    for coords in coordinates:
+        if coords.address == client_address:
+            client_coordinates = (
+                coords.lat,
+                coords.lon
+            )
+
     restaurants_for_order_distance = []
     for restautant in restautants:
-        restautant_coords = fetch_coordinates(api_key, restautant.address)
-        distance_from_restaurant_to_client = round(distance.distance(client_coords, restautant_coords).km, 1)
+        try:
+            for coords in coordinates:
+                if coords.address == restautant.address:
+                    restautant_coordinates = (
+                        coords.lat,
+                        coords.lon
+                    )
+        except Coordinates.DoesNotExist:
+            try:
+                lon, lat = fetch_coordinates(YANDEX_API_KEY, restautant.address)
+                restautant_coords = Coordinates.objects.create(
+                    address=restautant.address,
+                    lon=lon,
+                    lat=lat
+                )[0]
+            except MyError as err:
+                logging.error(err)
+                pass
+
+        distance_from_restaurant_to_client = round(distance.distance(
+            client_coordinates,
+            restautant_coordinates
+        ).km, 1)
         restaurants_for_order_distance.append(
             {
                 'name': restautant.name,
@@ -137,56 +146,48 @@ def restaurants_with_order_products(order_elements):
     restaurants_lists = []
     items = RestaurantMenuItem.objects.prefetch_related('restaurant')
     for element in order_elements:
-        menu_items = items.filter(product=element.product)
-        restaurateurs_with_product = [item.restaurant for item in menu_items]
-        restaurants_lists.append(restaurateurs_with_product)
+        for item in items:
+            if item.product == element.product:
+                restaurants_lists.append(item.restaurant)
 
-    restaurants_for_order = restaurants_lists[0]
-    for restaurant in restaurants_lists:
-        restaurants_for_order = list(set(restaurants_for_order) & set(restaurant))
-    return restaurants_for_order
+    return list(set(restaurants_lists))
 
 
 @user_passes_test(is_manager, login_url='restaurateur:login')
 def view_orders(request):
-    orders = Order.objects.prefetch_related('restaurant')
+    orders = Order.objects.prefetch_related('restaurant')\
+                          .prefetch_related('elements__product')\
+                          .orders_price()
     order_items = []
     for order in orders:
         if order.status != 'Done':
-            order_elements = OrderElement.objects.filter(order=order).prefetch_related('product')
+            order_elements = OrderElement.objects.filter(order=order).prefetch_related('product')\
+                                                                     .prefetch_related('order')
             if order.restaurant:
-                order.status = 'Progress'
+                restaurant = order.restaurant
+                restaurants = None
+                PROCESS = 'Process'
+                order.order_status = PROCESS
                 order.save()
 
-                order_items.append(
-                    {
-                        'id': order.id,
-                        'status': order.get_status_display(),
-                        'pay_form': order.get_pay_form_display(),
-                        'price': order_elements.order_price(),
-                        'client': order.firstname,
-                        'phonenumber': order.phonenumber,
-                        'address': order.address,
-                        'comment': order.comment,
-                        'restaurant': order.restaurant
-                    }
-                )
             else:
                 restaurants_for_order = restaurants_with_order_products(order_elements)
-                restaurants_for_order_with_distances = find_distances(order.address, restaurants_for_order)
-                order_items.append(
-                    {
-                        'id': order.id,
-                        'status': order.get_status_display(),
-                        'pay_form': order.get_pay_form_display(),
-                        'price': order_elements.order_price(),
-                        'client': order.firstname,
-                        'phonenumber': order.phonenumber,
-                        'address': order.address,
-                        'comment': order.comment,
-                        'restaurants': restaurants_for_order_with_distances,
-                    }
-                )
+                restaurants = find_distances(order.address, restaurants_for_order)
+                restaurant = None
+            order_items.append(
+                {
+                    'id': order.id,
+                    'status': order.get_status_display(),
+                    'pay_form': order.get_pay_form_display(),
+                    'price': order.order_price,
+                    'client': order.firstname,
+                    'phonenumber': order.phonenumber,
+                    'address': order.address,
+                    'comment': order.comment,
+                    'estaurant': restaurant,
+                    'restaurants': restaurants,
+                }
+            )
 
     return render(request, template_name='order_items.html', context={
         'order_items': order_items
