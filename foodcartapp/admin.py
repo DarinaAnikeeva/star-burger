@@ -31,7 +31,7 @@ class OrderElementInline(admin.TabularInline):
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     readonly_fields = [
-        'order_price'
+        'price'
     ]
 
     inlines = [
@@ -39,9 +39,12 @@ class OrderAdmin(admin.ModelAdmin):
     ]
 
 
-    def order_price(self, obj):
-        price = OrderElement.objects.filter(order=obj).order_price()
-        return float(price)
+    def price(self, obj):
+        price = 0
+        for element in obj.elements.all():
+            if element.quantity and element.price:
+                price += element.quantity * element.price
+        return price
 
     def response_post_save_change(self, request, obj):
         res = super().response_post_save_change(request, obj)
@@ -50,8 +53,7 @@ class OrderAdmin(admin.ModelAdmin):
                 return redirect(request.GET['next'])
             else:
                 return res
-        else:
-            return res
+
 
 class RestaurantMenuItemInline(admin.TabularInline):
     model = RestaurantMenuItem
