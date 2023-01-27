@@ -1,7 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator
 from phonenumber_field.modelfields import PhoneNumberField
-from django.db.models import F
+from django.db.models import F, Sum
 from django.utils import timezone
 
 
@@ -127,6 +127,11 @@ class RestaurantMenuItem(models.Model):
     def __str__(self):
         return f"{self.restaurant.name} - {self.product.name}"
 
+class OrderQuerySet(models.QuerySet):
+
+    def orders_price(self):
+        orders = self.annotate(order_price=Sum(F('elements__price') * F('elements__quantity')))
+        return orders
 
 class Order(models.Model):
     firstname = models.CharField(
@@ -143,8 +148,9 @@ class Order(models.Model):
         max_length=20,
         db_index=True)
 
-    address = models.TextField(
+    address = models.CharField(
         verbose_name='Адрес',
+        max_length=200,
     )
 
     NEW = 'New'
@@ -170,24 +176,22 @@ class Order(models.Model):
 
     comment = models.TextField(
         verbose_name='Комментарий к заказу',
-        default='',
         blank=True,
-        null=True,
     )
 
-    registered = models.DateTimeField(
+    registered_at = models.DateTimeField(
         verbose_name='Время создания заказа',
         default=timezone.now
     )
 
-    called = models.DateTimeField(
+    called_at = models.DateTimeField(
         verbose_name='Время звонка',
         db_index=True,
         blank=True,
         null=True
     )
 
-    delivered = models.DateTimeField(
+    delivered_at = models.DateTimeField(
         verbose_name='Время доставки',
         db_index=True,
         blank=True,
@@ -221,6 +225,7 @@ class Order(models.Model):
         null=True
     )
 
+    objects = OrderQuerySet.as_manager()
     class Meta:
         verbose_name = 'заказы'
         verbose_name_plural = 'заказы'
@@ -229,14 +234,6 @@ class Order(models.Model):
         return f'{self.firstname}, {self.lastname}, {self.address}'
 
 
-class OrderElementQuerySet(models.QuerySet):
-
-    def order_price(self):
-        order_elements = self.annotate(element_price=F('price') * F('quantity'))
-        price = 0
-        for element in order_elements:
-            price += element.element_price
-        return price
 
 
 class OrderElement(models.Model):
@@ -249,15 +246,13 @@ class OrderElement(models.Model):
     product = models.ForeignKey(
         Product,
         on_delete=models.CASCADE,
-        related_name='order_products',
+        related_name='elements',
         verbose_name='Товар',
     )
     quantity = models.IntegerField(
-        verbose_name='Количество',
+        verbose_name='Количество данного товара',
+        validators=[MinValueValidator(1)]
     )
-
-    objects = OrderElementQuerySet.as_manager()
-
     price = models.DecimalField(
         verbose_name='Цена товара',
         max_digits=5,
@@ -271,3 +266,4 @@ class OrderElement(models.Model):
 
     def __str__(self):
         return f'{self.product.name} - {self.order.firstname} {self.order.lastname}'
+
