@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='order',
             name='pay_form',
-            field=models.CharField(choices=[('right_now_pay', 'Электронно'), ('delivery_pay_cash', 'Наличными после доставки'), ('delivery_pay_card', 'Картой после доставки')], db_index=True, default='Наличными после доставки', max_length=20, verbose_name='Способ оплаты'),
+            field=models.CharField(choices=[('right_now_pay', 'Электронно'), ('delivery_pay_cash', 'Наличными после доставки'), ('delivery_pay_card', 'Картой после доставки')], db_index=True, default='Наличными после доставки', max_length=50, verbose_name='Способ оплаты'),
         ),
         migrations.AlterField(
             model_name='order',

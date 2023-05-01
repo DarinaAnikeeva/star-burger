@@ -210,7 +210,7 @@ class Order(models.Model):
 
     pay_form = models.CharField(
         verbose_name='Способ оплаты',
-        max_length=20,
+        max_length=50,
         choices=FORMS,
         default=DELIVERY_CASH,
         db_index=True
